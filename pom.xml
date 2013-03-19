@@ -6,6 +6,11 @@
 	<version>1.0.1-SNAPSHOT</version>
 	<packaging>maven-plugin</packaging>
 	<name>${project.artifactId}</name>
+	<scm>
+		<url>git@github.com:hardisonbrewing/maven-clover-reductor.git</url>
+		<developerConnection>scm:git:git@github.com:hardisonbrewing/maven-clover-reductor.git</developerConnection>
+		<tag>HEAD</tag>
+	</scm>
 	<build>
 		<plugins>
 			<plugin>
@@ -62,13 +67,6 @@
 			<version>3.0.4</version>
 		</dependency>
 	</dependencies>
-	<repositories>
-		<repository>
-			<id>tmatesoft-releases</id>
-			<name>tmatesoft-releases</name>
-			<url>http://maven.tmatesoft.com/content/repositories/releases/</url>
-		</repository>
-	</repositories>
 	<distributionManagement>
 		<repository>
 			<id>hardisonbrewing-releases</id>
