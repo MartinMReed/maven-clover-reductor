@@ -49,7 +49,7 @@ public class BlameStreamConsumer implements StreamConsumer {
             revision = Long.parseLong( line );
         }
         catch (NumberFormatException e) {
-            System.err.println( "Unable to parse line: " + line );
+            System.err.println( "Unable to parse line: [" + original + "]" );
             throw e;
         }
 

@@ -26,6 +26,7 @@ public class RevisionStreamConsumer implements StreamConsumer {
     public void consumeLine( String line ) {
 
         line = line.trim();
+        String original = line;
 
         int lastIndexOf = line.lastIndexOf( ' ' );
         if ( lastIndexOf == -1 ) {
@@ -38,7 +39,7 @@ public class RevisionStreamConsumer implements StreamConsumer {
             revision = Long.parseLong( line );
         }
         catch (NumberFormatException e) {
-            System.err.println( "Unable to parse line: " + line );
+            System.err.println( "Unable to parse line: [" + original + "]" );
             throw e;
         }
     }
