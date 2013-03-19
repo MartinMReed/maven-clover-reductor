@@ -42,6 +42,17 @@ public class BlameStreamConsumer implements StreamConsumer {
         }
 
         line = line.substring( 0, indexOf ).trim();
-        revisions.add( Long.parseLong( line ) );
+
+        long revision;
+
+        try {
+            revision = Long.parseLong( line );
+        }
+        catch (NumberFormatException e) {
+            System.err.println( "Unable to parse line: " + line );
+            throw e;
+        }
+
+        revisions.add( revision );
     }
 }

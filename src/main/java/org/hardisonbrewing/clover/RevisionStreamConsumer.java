@@ -33,7 +33,14 @@ public class RevisionStreamConsumer implements StreamConsumer {
         }
 
         line = line.substring( lastIndexOf + 1, line.length() - 1 ).trim();
-        revision = Long.parseLong( line );
+
+        try {
+            revision = Long.parseLong( line );
+        }
+        catch (NumberFormatException e) {
+            System.err.println( "Unable to parse line: " + line );
+            throw e;
+        }
     }
 
     public long getRevision() {

@@ -16,11 +16,13 @@
  */
 package org.hardisonbrewing.clover;
 
+import generated.ClassMetrics;
 import generated.Coverage;
 import generated.FileMetrics;
 import generated.Line;
 import generated.PackageMetrics;
 import generated.Project;
+import generated.ProjectMetrics;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -31,10 +33,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.FileUtils;
+import org.codehaus.plexus.util.cli.CommandLineException;
+import org.codehaus.plexus.util.cli.CommandLineUtils;
+import org.codehaus.plexus.util.cli.Commandline;
 import org.codehaus.plexus.util.cli.StreamConsumer;
 import org.hardisonbrewing.jaxb.JAXB;
 
@@ -66,8 +73,25 @@ public final class ReductMojo extends AbstractMojo {
 
     private long cutoffRevision;
 
+    /**
+     * @parameter expression="${project}"
+     * @required
+     */
+    private MavenProject mavenProject;
+
+    /**
+     * @parameter expression="${session}"
+     * @readonly
+     * @required
+     */
+    private MavenSession mavenSession;
+
     @Override
     public final void execute() throws MojoExecutionException, MojoFailureException {
+
+        if ( !mavenProject.isExecutionRoot() ) {
+            return;
+        }
 
         long start = System.currentTimeMillis();
 
@@ -90,6 +114,8 @@ public final class ReductMojo extends AbstractMojo {
         initCutoffDate();
         initThreadCount();
 
+        System.out.println( "Using coverage report from: " + cloverXmlFile.getPath() );
+
         targetDirectory = new File( "target", "clover-reductor" );
         targetDirectory.mkdirs();
 
@@ -105,22 +131,44 @@ public final class ReductMojo extends AbstractMojo {
             return;
         }
 
-        cutoffRevision = findCutoffRevision( workingCopyPath, cutoffDate );
+        cutoffRevision = findCutoffRevision( workingCopyPath );
         System.out.println( "Cutoff Revision: " + cutoffRevision );
 
-        List<generated.Package> _packages = new LinkedList<generated.Package>( project.getPackage() );
+        List<generated.Package> _packages = new LinkedList<generated.Package>();
         Map<generated.Package, List<generated.File>> _files = new HashMap<generated.Package, List<generated.File>>();
 
         int fileCount = 0;
 
         for (generated.Package _package : project.getPackage()) {
 
+            PackageMetrics packageMetrics = _package.getMetrics();
+
+            // no coverage, skip it
+            int coveredElements = packageMetrics.getCoveredelements().intValue();
+            if ( coveredElements == 0 ) {
+                continue;
+            }
+
+            // no files, skip it
             List<generated.File> files = _package.getFile();
             if ( files == null || files.isEmpty() ) {
                 continue;
             }
 
-            _files.put( _package, new LinkedList<generated.File>( files ) );
+            _packages.add( _package );
+
+            List<generated.File> __files = new LinkedList<generated.File>();
+
+            // only add files with coverage
+            for (generated.File file : files) {
+                FileMetrics fileMetrics = file.getMetrics();
+                if ( fileMetrics.getCoveredelements().intValue() > 0 ) {
+                    __files.add( file );
+                }
+            }
+
+            _files.put( _package, __files );
+
             fileCount += files.size();
         }
 
@@ -133,7 +181,7 @@ public final class ReductMojo extends AbstractMojo {
         System.out.println( "Starting " + threads.length + " threads for " + fileCount + " files." );
 
         for (int i = 0; i < threads.length; i++) {
-            threads[i] = new BlameThread( _packages, _files );
+            threads[i] = new BlameThread( project, _packages, _files );
             new Thread( threads[i] ).start();
         }
 
@@ -141,12 +189,34 @@ public final class ReductMojo extends AbstractMojo {
             thread.waitUntilFinished();
         }
 
-        JAXB.marshal( new File( cloverXmlFile.getParent(), "clover-reduced.xml" ), coverage );
+        File cloverXmlReducedFile = new File( cloverXmlFile.getParent(), "clover-reduced.xml" );
+        System.out.println( "Saving new coverage report to: " + cloverXmlReducedFile.getPath() );
+        JAXB.marshal( cloverXmlReducedFile, coverage );
+    }
+
+    private String getProperty( String key ) {
+
+        String value = mavenSession.getExecutionProperties().getProperty( key );
+        if ( value == null ) {
+            value = mavenProject.getProperties().getProperty( key );
+        }
+        if ( value == null ) {
+            return null;
+        }
+        boolean startsWith = value.startsWith( "\"" );
+        boolean endsWith = value.endsWith( "\"" );
+        if ( startsWith || endsWith ) {
+            int length = value.length();
+            int start = startsWith ? 1 : 0;
+            int end = endsWith ? length - 1 : length;
+            value = value.substring( start, end );
+        }
+        return value;
     }
 
     private void initCloverXmlPath() throws Exception {
 
-        cloverXmlPath = System.getProperty( CLOVER );
+        cloverXmlPath = getProperty( CLOVER );
         if ( cloverXmlPath == null || cloverXmlPath.length() == 0 ) {
             System.err.println( "Required property `" + CLOVER + "` missing. Use -D" + CLOVER + "=<path to xml>" );
             throw new IllegalArgumentException();
@@ -160,7 +230,7 @@ public final class ReductMojo extends AbstractMojo {
 
     private void initWorkingCopyPath() throws Exception {
 
-        workingCopyPath = System.getProperty( WORKING_COPY );
+        workingCopyPath = getProperty( WORKING_COPY );
         if ( workingCopyPath == null || workingCopyPath.length() == 0 ) {
             System.err.println( "Required property `" + WORKING_COPY + "` missing. Use -D" + WORKING_COPY + "=<path to working copy>" );
             throw new IllegalArgumentException();
@@ -178,7 +248,7 @@ public final class ReductMojo extends AbstractMojo {
 
     private void initCutoffDate() throws Exception {
 
-        cutoffDate = System.getProperty( CUTOFF_DATE );
+        cutoffDate = getProperty( CUTOFF_DATE );
         if ( cutoffDate == null || cutoffDate.length() == 0 ) {
             System.err.println( "Required property `" + CUTOFF_DATE + "` missing. Use -D" + CUTOFF_DATE + "=<timestamp>" );
             throw new IllegalArgumentException();
@@ -187,7 +257,7 @@ public final class ReductMojo extends AbstractMojo {
 
     private void initThreadCount() throws Exception {
 
-        String threadCountStr = System.getProperty( THREAD_COUNT );
+        String threadCountStr = getProperty( THREAD_COUNT );
         if ( threadCountStr != null && threadCountStr.length() > 0 ) {
             try {
                 threadCount = Integer.parseInt( threadCountStr );
@@ -199,13 +269,14 @@ public final class ReductMojo extends AbstractMojo {
         }
     }
 
-    private void inspectFile( generated.Package _package, generated.File file ) throws Exception {
+    private void inspectFile( Project project, generated.Package _package, generated.File file ) throws Exception {
 
         String filePath = file.getPath();
         if ( !new File( filePath ).exists() ) {
             throw new FileNotFoundException( filePath );
         }
 
+        ProjectMetrics projectMetrics = project.getMetrics();
         PackageMetrics packageMetrics = _package.getMetrics();
         FileMetrics fileMetrics = file.getMetrics();
 
@@ -214,13 +285,14 @@ public final class ReductMojo extends AbstractMojo {
 
         if ( revision < cutoffRevision ) {
 
+            int elements = fileMetrics.getCoveredelements().intValue();
+
             synchronized (_package) {
-                reduce( packageMetrics, fileMetrics );
+                reduce( projectMetrics, packageMetrics, fileMetrics );
             }
 
             String name = getFQN( _package, file );
-            int elements = fileMetrics.getCoveredelements().intValue();
-            System.out.println( "Removed " + elements + " elements from " + name + " @ r" + revision );
+            System.out.println( "Removed all " + elements + " elements from " + name + " @ r" + revision );
             return;
         }
 
@@ -232,7 +304,8 @@ public final class ReductMojo extends AbstractMojo {
             int lineNumber = line.getNum().intValue();
             if ( revisions.get( lineNumber - 1 ) < cutoffRevision && lineCount( line ) > 0 ) {
                 synchronized (_package) {
-                    reduce( packageMetrics, fileMetrics, line );
+                    reduce( projectMetrics, line );
+                    reduce( packageMetrics, line );
                 }
                 elements++;
             }
@@ -267,7 +340,25 @@ public final class ReductMojo extends AbstractMojo {
         return name;
     }
 
-    private void reduce( PackageMetrics packageMetrics, FileMetrics fileMetrics, Line line ) {
+    private void reduce( ProjectMetrics projectMetrics, PackageMetrics packageMetrics, FileMetrics fileMetrics ) {
+
+        reduce( projectMetrics, fileMetrics );
+
+        packageMetrics.setClasses( packageMetrics.getClasses().subtract( fileMetrics.getClasses() ) );
+        packageMetrics.setFiles( packageMetrics.getFiles().subtract( ONE ) );
+        packageMetrics.setComplexity( packageMetrics.getComplexity().subtract( fileMetrics.getComplexity() ) );
+        packageMetrics.setLoc( packageMetrics.getLoc().subtract( fileMetrics.getLoc() ) );
+        packageMetrics.setNcloc( packageMetrics.getNcloc().subtract( fileMetrics.getNcloc() ) );
+
+        reduce( packageMetrics, fileMetrics );
+
+        fileMetrics.setCoveredstatements( ZERO );
+        fileMetrics.setCoveredconditionals( ZERO );
+        fileMetrics.setCoveredmethods( ZERO );
+        fileMetrics.setCoveredelements( ZERO );
+    }
+
+    private void reduce( ClassMetrics packageMetrics, Line line ) {
 
         switch (line.getType()) {
             case STMT:
@@ -284,13 +375,7 @@ public final class ReductMojo extends AbstractMojo {
         packageMetrics.setCoveredelements( packageMetrics.getCoveredelements().subtract( ONE ) );
     }
 
-    private void reduce( PackageMetrics packageMetrics, FileMetrics fileMetrics ) {
-
-        packageMetrics.setClasses( packageMetrics.getClasses().subtract( fileMetrics.getClasses() ) );
-        packageMetrics.setFiles( packageMetrics.getFiles().subtract( ONE ) );
-        packageMetrics.setComplexity( packageMetrics.getComplexity().subtract( fileMetrics.getComplexity() ) );
-        packageMetrics.setLoc( packageMetrics.getLoc().subtract( fileMetrics.getLoc() ) );
-        packageMetrics.setNcloc( packageMetrics.getNcloc().subtract( fileMetrics.getNcloc() ) );
+    private void reduce( ClassMetrics packageMetrics, ClassMetrics fileMetrics ) {
 
         packageMetrics.setStatements( packageMetrics.getStatements().subtract( fileMetrics.getStatements() ) );
         packageMetrics.setConditionals( packageMetrics.getConditionals().subtract( fileMetrics.getConditionals() ) );
@@ -301,11 +386,6 @@ public final class ReductMojo extends AbstractMojo {
         packageMetrics.setCoveredconditionals( packageMetrics.getCoveredconditionals().subtract( fileMetrics.getCoveredconditionals() ) );
         packageMetrics.setCoveredmethods( packageMetrics.getCoveredmethods().subtract( fileMetrics.getCoveredmethods() ) );
         packageMetrics.setCoveredelements( packageMetrics.getCoveredelements().subtract( fileMetrics.getCoveredelements() ) );
-
-        fileMetrics.setCoveredstatements( ZERO );
-        fileMetrics.setCoveredconditionals( ZERO );
-        fileMetrics.setCoveredmethods( ZERO );
-        fileMetrics.setCoveredelements( ZERO );
     }
 
     private Properties info( String filePath ) throws Exception {
@@ -317,7 +397,7 @@ public final class ReductMojo extends AbstractMojo {
 
         Properties properties = new Properties();
         StreamConsumer streamConsumer = new InfoStreamConsumer( properties );
-        CommandLineService.execute( cmd, streamConsumer, streamConsumer );
+        CommandLineUtils.executeCommandLine( build( cmd ), streamConsumer, streamConsumer );
         return properties;
     }
 
@@ -330,11 +410,11 @@ public final class ReductMojo extends AbstractMojo {
 
         List<Long> revisions = new LinkedList<Long>();
         StreamConsumer streamConsumer = new BlameStreamConsumer( revisions );
-        CommandLineService.execute( cmd, streamConsumer, streamConsumer );
+        CommandLineUtils.executeCommandLine( build( cmd ), streamConsumer, streamConsumer );
         return revisions;
     }
 
-    private long findCutoffRevision( String workingCopy, String cutoffDate ) throws Exception {
+    private long findCutoffRevision( String workingCopy ) throws Exception {
 
         Properties properties = info( workingCopy );
 
@@ -349,21 +429,35 @@ public final class ReductMojo extends AbstractMojo {
         cmd.add( targetDirectory.getPath() );
 
         RevisionStreamConsumer streamConsumer = new RevisionStreamConsumer();
-        CommandLineService.execute( cmd, streamConsumer, streamConsumer );
+        CommandLineUtils.executeCommandLine( build( cmd ), streamConsumer, streamConsumer );
         return streamConsumer.getRevision();
+    }
+
+    private Commandline build( List<String> cmd ) throws CommandLineException {
+
+        Commandline commandLine = new Commandline();
+        commandLine.setExecutable( cmd.get( 0 ) );
+
+        for (int i = 1; i < cmd.size(); i++) {
+            commandLine.createArg().setValue( cmd.get( i ) );
+        }
+
+        return commandLine;
     }
 
     private final class BlameThread implements Runnable {
 
         private final Object lock = new Object();
 
+        private final Project project;
         private final List<generated.Package> _packages;
         private final Map<generated.Package, List<generated.File>> _files;
 
         private boolean finished;
 
-        public BlameThread(List<generated.Package> _packages, Map<generated.Package, List<generated.File>> _files) {
+        public BlameThread(Project project, List<generated.Package> _packages, Map<generated.Package, List<generated.File>> _files) {
 
+            this.project = project;
             this._packages = _packages;
             this._files = _files;
         }
@@ -403,7 +497,7 @@ public final class ReductMojo extends AbstractMojo {
                     }
 
                     try {
-                        inspectFile( _package, file );
+                        inspectFile( project, _package, file );
                     }
                     catch (Exception e) {
                         System.err.println( "Unable to inspect file: " + file.getName() );
