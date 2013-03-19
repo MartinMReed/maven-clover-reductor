@@ -32,8 +32,12 @@ import javax.xml.bind.JAXBElement;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.transform.sax.SAXSource;
 
 import org.codehaus.plexus.util.IOUtil;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.XMLReaderFactory;
 
 public class JAXB {
 
@@ -72,16 +76,23 @@ public class JAXB {
     public static <T> T unmarshal( InputStream inputStream, Class<T> clazz ) throws JAXBException {
 
         try {
+
+            NamespaceFilter namespaceFilter = new NamespaceFilter( null, true );
+            namespaceFilter.setParent( XMLReaderFactory.createXMLReader() );
+
+            InputSource inputSource = new InputSource( inputStream );
+            SAXSource saxSource = new SAXSource( namespaceFilter, inputSource );
+
             Unmarshaller unmarshaller = getUnmarshaller( clazz );
-            Object object = unmarshaller.unmarshal( inputStream );
+            Object object = unmarshaller.unmarshal( saxSource );
             if ( object instanceof JAXBElement ) {
                 JAXBElement<T> jaxbElement = (JAXBElement<T>) object;
                 return (T) jaxbElement.getValue();
             }
             return (T) object;
         }
-        catch (JAXBException e) {
-            throw e;
+        catch (SAXException e) {
+            throw new IllegalStateException( e );
         }
     }
 
@@ -109,14 +120,9 @@ public class JAXB {
 
     public static void marshal( OutputStream outputStream, Object object ) throws JAXBException {
 
-        try {
-            Marshaller marshaller = getMarshaller( object.getClass() );
-            marshaller.setProperty( "jaxb.formatted.output", Boolean.TRUE );
-            marshaller.marshal( object, outputStream );
-        }
-        catch (JAXBException e) {
-            throw e;
-        }
+        Marshaller marshaller = getMarshaller( object.getClass() );
+        marshaller.setProperty( "jaxb.formatted.output", Boolean.TRUE );
+        marshaller.marshal( object, outputStream );
     }
 
     public static JAXBContext getJAXBContext( Class<?> clazz ) throws JAXBException {

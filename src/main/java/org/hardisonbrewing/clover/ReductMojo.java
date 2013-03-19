@@ -65,6 +65,7 @@ public final class ReductMojo extends AbstractMojo {
     private String cloverXmlPath;
     private File cloverXmlFile;
 
+    private String svnUsername;
     private String workingCopyPath;
     private String cutoffDate;
     private int threadCount = DEFAULT_THREAD_COUNT;
@@ -109,6 +110,7 @@ public final class ReductMojo extends AbstractMojo {
 
     private void _execute() throws Exception {
 
+        svnUsername = getProperty( "svnUsername" );
         initCloverXmlPath();
         initWorkingCopyPath();
         initCutoffDate();
@@ -393,6 +395,9 @@ public final class ReductMojo extends AbstractMojo {
         List<String> cmd = new LinkedList<String>();
         cmd.add( "svn" );
         cmd.add( "info" );
+        if ( svnUsername != null ) {
+            cmd.add( "--username=" + svnUsername );
+        }
         cmd.add( filePath );
 
         Properties properties = new Properties();
@@ -406,6 +411,9 @@ public final class ReductMojo extends AbstractMojo {
         List<String> cmd = new LinkedList<String>();
         cmd.add( "svn" );
         cmd.add( "blame" );
+        if ( svnUsername != null ) {
+            cmd.add( "--username=" + svnUsername );
+        }
         cmd.add( filePath );
 
         List<Long> revisions = new LinkedList<Long>();
@@ -421,6 +429,9 @@ public final class ReductMojo extends AbstractMojo {
         List<String> cmd = new LinkedList<String>();
         cmd.add( "svn" );
         cmd.add( "checkout" );
+        if ( svnUsername != null ) {
+            cmd.add( "--username=" + svnUsername );
+        }
         cmd.add( "-r" );
         cmd.add( "{" + cutoffDate + "}" );
         cmd.add( "--depth" );
