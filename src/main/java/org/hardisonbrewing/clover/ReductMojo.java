@@ -17,10 +17,10 @@
 package org.hardisonbrewing.clover;
 
 import generated.ClassMetrics;
-import generated.Construct;
 import generated.Coverage;
 import generated.FileMetrics;
 import generated.Line;
+import generated.PackageMetrics;
 import generated.Project;
 
 import java.io.File;
@@ -57,8 +57,7 @@ public final class ReductMojo extends AbstractMojo {
     private static final String CUTOFF_DATE = "cutoffDate";
     private static final String THREAD_COUNT = "threads";
 
-    private String cloverXmlPath;
-    private File cloverXmlFile;
+    private File cloverReportFile;
 
     private String svnUsername;
     private String workingCopyPath;
@@ -106,19 +105,19 @@ public final class ReductMojo extends AbstractMojo {
     private void _execute() throws Exception {
 
         svnUsername = getProperty( "svnUsername" );
-        initCloverXmlPath();
+        initCloverFilePath();
         initWorkingCopyPath();
         initCutoffDate();
         initThreadCount();
 
-        System.out.println( "Using coverage report from: " + cloverXmlFile.getPath() );
+        System.out.println( "Using coverage report from: " + cloverReportFile.getPath() );
 
         targetDirectory = new File( "target", "clover-reductor" );
         targetDirectory.mkdirs();
 
-        FileUtils.copyFile( cloverXmlFile, new File( targetDirectory, "clover-original.xml" ) );
+        FileUtils.copyFile( cloverReportFile, new File( targetDirectory, "clover-original.xml" ) );
 
-        Coverage coverage = JAXB.unmarshal( cloverXmlFile, Coverage.class );
+        Coverage coverage = JAXB.unmarshal( cloverReportFile, Coverage.class );
         Project project = coverage.getProject();
         System.out.println( "Running Reductor: " + project.getName() );
 
@@ -131,12 +130,12 @@ public final class ReductMojo extends AbstractMojo {
         cutoffRevision = findCutoffRevision( workingCopyPath );
         System.out.println( "Cutoff Revision: " + cutoffRevision );
 
-        List<generated.Package> _packages = new LinkedList<generated.Package>();
-        Map<generated.Package, List<generated.File>> _files = new HashMap<generated.Package, List<generated.File>>();
+        List<generated.Package> packagesWithFiles = new LinkedList<generated.Package>();
+        Map<generated.Package, List<generated.File>> packageFiles = new HashMap<generated.Package, List<generated.File>>();
 
         int fileCount = 0;
 
-        for (generated.Package _package : project.getPackage()) {
+        for (generated.Package _package : packages) {
 
             // no files, skip it
             List<generated.File> files = _package.getFile();
@@ -144,8 +143,8 @@ public final class ReductMojo extends AbstractMojo {
                 continue;
             }
 
-            _packages.add( _package );
-            _files.put( _package, new LinkedList<generated.File>( files ) );
+            packagesWithFiles.add( _package );
+            packageFiles.put( _package, new LinkedList<generated.File>( files ) );
 
             fileCount += files.size();
         }
@@ -156,10 +155,9 @@ public final class ReductMojo extends AbstractMojo {
         }
 
         BlameThread[] threads = new BlameThread[Math.min( fileCount, threadCount )];
-        System.out.println( "Starting " + threads.length + " threads for " + fileCount + " files." );
 
         for (int i = 0; i < threads.length; i++) {
-            threads[i] = new BlameThread( project, _packages, _files );
+            threads[i] = new BlameThread( project, packagesWithFiles, packageFiles );
             new Thread( threads[i] ).start();
         }
 
@@ -169,9 +167,18 @@ public final class ReductMojo extends AbstractMojo {
 
         recalulate( project );
 
-        File cloverXmlReducedFile = new File( cloverXmlFile.getParent(), "clover-reduced.xml" );
-        System.out.println( "Saving new coverage report to: " + cloverXmlReducedFile.getPath() );
-        JAXB.marshal( cloverXmlReducedFile, coverage );
+        File cloverReportReducedFile = reducedFile( cloverReportFile );
+        System.out.println( "Saving new coverage report to: " + cloverReportReducedFile.getPath() );
+        JAXB.marshal( cloverReportReducedFile, coverage );
+    }
+
+    private File reducedFile( File file ) {
+
+        String name = file.getName();
+        String extension = FileUtils.extension( name );
+        name = name.substring( 0, name.length() - ( extension.length() + 1 ) );
+        name = name + "-reduced." + extension;
+        return new File( file.getParent(), name );
     }
 
     private String getProperty( String key ) {
@@ -194,17 +201,17 @@ public final class ReductMojo extends AbstractMojo {
         return value;
     }
 
-    private void initCloverXmlPath() throws Exception {
+    private void initCloverFilePath() throws Exception {
 
-        cloverXmlPath = getProperty( CLOVER );
-        if ( cloverXmlPath == null || cloverXmlPath.length() == 0 ) {
+        String cloverReportPath = getProperty( CLOVER );
+        if ( cloverReportPath == null || cloverReportPath.length() == 0 ) {
             System.err.println( "Required property `" + CLOVER + "` missing. Use -D" + CLOVER + "=<path to xml>" );
             throw new IllegalArgumentException();
         }
 
-        cloverXmlFile = new File( cloverXmlPath );
-        if ( !cloverXmlFile.exists() ) {
-            throw new FileNotFoundException( cloverXmlFile.getPath() );
+        cloverReportFile = new File( cloverReportPath );
+        if ( !cloverReportFile.exists() ) {
+            throw new FileNotFoundException( cloverReportFile.getPath() );
         }
     }
 
@@ -249,56 +256,46 @@ public final class ReductMojo extends AbstractMojo {
         }
     }
 
-    private void inspectFile( Project project, generated.Package _package, generated.File file ) throws Exception {
+    private void inspectFile( generated.File file ) throws Exception {
 
         String filePath = file.getPath();
         if ( !new File( filePath ).exists() ) {
             throw new FileNotFoundException( filePath );
         }
 
+        List<Line> lines = file.getLine();
+        FileMetrics fileMetrics = file.getMetrics();
+
+        file.getClazz().clear(); ////////////////////////////////////
+        reset( fileMetrics );
+
         Properties properties = info( filePath );
         long revision = Long.parseLong( properties.getProperty( "Revision" ) );
 
-        FileMetrics fileMetrics = file.getMetrics();
-        int originalElements = fileMetrics.getElements();
-
-        reset( fileMetrics );
-
-        if ( revision < cutoffRevision ) {
-            String name = getFQN( _package, file );
-            System.out.println( "Removed all " + originalElements + " elements from " + name + " @ r" + revision );
-            return;
+        if ( revision >= cutoffRevision ) {
+            inspectLines( file );
         }
+        else {
+            lines.clear(); /////////////////////////////////
+        }
+    }
 
-        List<Long> revisions = blame( filePath );
+    private void inspectLines( generated.File file ) throws Exception {
 
-        int elements = 0;
+        List<Line> lines = file.getLine();
+        FileMetrics fileMetrics = file.getMetrics();
+        List<Long> revisions = blame( file.getPath() );
 
-        for (Line line : file.getLine()) {
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            Line line = lines.get( i );
             int lineNumber = line.getNum();
             if ( cutoffRevision < revisions.get( lineNumber - 1 ) ) {
                 add( fileMetrics, line );
             }
             else {
-                Construct type = line.getType();
-                elements += type == Construct.COND ? 2 : 1;
+                lines.remove( i ); ///////////////////////
             }
         }
-
-        if ( elements > 0 ) {
-            String name = getFQN( _package, file );
-            System.out.println( "Removed " + elements + " elements from " + name + " @ r" + revision );
-        }
-    }
-
-    private String getFQN( generated.Package _package, generated.File file ) {
-
-        String packageName = _package.getName();
-        String name = file.getName();
-        if ( packageName != null && packageName.length() > 0 ) {
-            name = packageName + "." + name;
-        }
-        return name;
     }
 
     private void reset( ClassMetrics metrics ) {
@@ -320,23 +317,33 @@ public final class ReductMojo extends AbstractMojo {
         int coveredElements = 0;
 
         switch (line.getType()) {
-            case STMT: {
+            case COND: {
+                elements = 2;
+                int trueCount = Math.min( 1, line.getTruecount() );
+                int falseCount = Math.min( 1, line.getFalsecount() );
+                coveredElements = trueCount + falseCount;
+                break;
+            }
+            case STMT:
+            case METHOD: {
                 elements = 1;
-                coveredElements = line.getCount();
+                coveredElements = Math.min( 1, line.getCount() );
+                break;
+            }
+        }
+
+        switch (line.getType()) {
+            case STMT: {
                 parent.setStatements( parent.getStatements() + elements );
                 parent.setCoveredstatements( parent.getCoveredstatements() + coveredElements );
                 break;
             }
             case COND: {
-                elements = 2;
-                coveredElements = line.getTruecount() + line.getFalsecount();
                 parent.setConditionals( parent.getConditionals() + elements );
                 parent.setCoveredconditionals( parent.getCoveredconditionals() + coveredElements );
                 break;
             }
             case METHOD: {
-                elements = 1;
-                coveredElements = line.getCount();
                 parent.setMethods( parent.getMethods() + elements );
                 parent.setCoveredmethods( parent.getCoveredmethods() + coveredElements );
                 break;
@@ -427,13 +434,34 @@ public final class ReductMojo extends AbstractMojo {
         int coveredMethods = 0;
         int coveredElements = 0;
 
+        int files = 0;
+        int classes = 0;
+
         for (Object child : getChildren( parent )) {
 
-            if ( !( child instanceof generated.File ) ) {
+            ClassMetrics childMetrics;
+
+            if ( child instanceof generated.File ) {
+
+                generated.File file = (generated.File) child;
+                FileMetrics fileMetrics = file.getMetrics();
+                childMetrics = fileMetrics;
+
+                files++;
+
+                int _classes = file.getClazz().size();
+                fileMetrics.setClasses( _classes );
+                classes += _classes;
+            }
+            else {
+                childMetrics = getMetrics( child );
                 recalulate( child );
             }
 
-            ClassMetrics childMetrics = getMetrics( child );
+            if ( childMetrics instanceof PackageMetrics ) {
+                PackageMetrics packageMetrics = (PackageMetrics) childMetrics;
+                files += packageMetrics.getFiles();
+            }
 
             statements += childMetrics.getStatements();
             conditionals += childMetrics.getConditionals();
@@ -455,6 +483,16 @@ public final class ReductMojo extends AbstractMojo {
         parentMetrics.setCoveredconditionals( coveredConditionals );
         parentMetrics.setCoveredmethods( coveredMethods );
         parentMetrics.setCoveredelements( coveredElements );
+
+        if ( parentMetrics instanceof FileMetrics ) {
+            FileMetrics fileMetrics = (FileMetrics) parentMetrics;
+            fileMetrics.setClasses( classes );
+        }
+
+        if ( parentMetrics instanceof PackageMetrics ) {
+            PackageMetrics packageMetrics = (PackageMetrics) parentMetrics;
+            packageMetrics.setFiles( files );
+        }
     }
 
     private List<?> getChildren( Object object ) {
@@ -522,28 +560,30 @@ public final class ReductMojo extends AbstractMojo {
 
                         _package = _packages.get( 0 );
 
-                        synchronized (_package) {
+                        List<generated.File> files = _files.get( _package );
+                        file = files.remove( 0 );
 
-                            List<generated.File> files = _files.get( _package );
-                            if ( files == null ) {
-                                continue;
-                            }
-
-                            file = files.remove( 0 );
-
-                            if ( files.isEmpty() ) {
-                                _packages.remove( 0 );
-                                _files.remove( _package );
-                            }
+                        if ( files.isEmpty() ) {
+                            _packages.remove( 0 );
+                            _files.remove( _package );
                         }
                     }
 
                     try {
-                        inspectFile( project, _package, file );
+                        inspectFile( file );
                     }
                     catch (Exception e) {
                         System.err.println( "Unable to inspect file: " + file.getName() );
                         e.printStackTrace();
+                    }
+
+                    synchronized (_packages) {
+                        if ( file.getLine().isEmpty() ) {
+                            _package.getFile().remove( file ); ////////////////////////
+                        }
+                        if ( !_packages.contains( _package ) && _package.getFile().isEmpty() ) {
+                            project.getPackage().remove( _package ); ////////////////////////
+                        }
                     }
                 }
             }
