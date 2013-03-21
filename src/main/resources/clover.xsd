@@ -14,7 +14,7 @@
                 <xs:element ref="testproject"/>
             </xs:sequence>
             <xs:attribute name="clover" use="required" type="xs:NMTOKEN"/>
-            <xs:attribute name="generated" use="required" type="xs:integer"/>
+            <xs:attribute name="generated" use="required" type="xs:int"/>
         </xs:complexType>
     </xs:element>
     <xs:element name="project">
@@ -31,7 +31,7 @@
                 <xs:element maxOccurs="unbounded" ref="package"/>
             </xs:sequence>
             <xs:attribute name="name"/>
-            <xs:attribute name="timestamp" use="required" type="xs:integer"/>
+            <xs:attribute name="timestamp" use="required" type="xs:int"/>
         </xs:complexType>
     </xs:element>
     <xs:element name="testproject">
@@ -48,7 +48,7 @@
                 <xs:element maxOccurs="unbounded" ref="package"/>
             </xs:sequence>
             <xs:attribute name="name"/>
-            <xs:attribute name="timestamp" use="required" type="xs:integer"/>
+            <xs:attribute name="timestamp" use="required" type="xs:int"/>
         </xs:complexType>
     </xs:element>
     <xs:element name="package">
@@ -116,12 +116,12 @@
             </xs:documentation>
         </xs:annotation>
         <xs:complexType>
-            <xs:attribute name="num" use="required" type="xs:integer"/>
+            <xs:attribute name="num" use="required" type="xs:int"/>
             <xs:attribute name="type" use="required" type="construct"/>
-            <xs:attribute name="complexity" type="xs:integer"/>
-            <xs:attribute name="count" type="xs:integer"/>
-            <xs:attribute name="falsecount" type="xs:integer"/>
-            <xs:attribute name="truecount" type="xs:integer"/>
+            <xs:attribute name="complexity" type="xs:int"/>
+            <xs:attribute name="count" type="xs:int"/>
+            <xs:attribute name="falsecount" type="xs:int"/>
+            <xs:attribute name="truecount" type="xs:int"/>
             <xs:attribute name="signature" type="xs:string"/>
             <xs:attribute name="testduration" type="xs:decimal"/>
             <xs:attribute name="testsuccess" type="xs:boolean"/>
@@ -148,22 +148,22 @@
                 @testruns - the total number of test methods run
             </xs:documentation>
         </xs:annotation>
-        <xs:attribute name="complexity" use="required" type="xs:integer"/>
-        <xs:attribute name="elements" use="required" type="xs:integer"/>
-        <xs:attribute name="coveredelements" use="required" type="xs:integer"/>
-        <xs:attribute name="conditionals" use="required" type="xs:integer"/>
+        <xs:attribute name="complexity" use="required" type="xs:int"/>
+        <xs:attribute name="elements" use="required" type="xs:int"/>
+        <xs:attribute name="coveredelements" use="required" type="xs:int"/>
+        <xs:attribute name="conditionals" use="required" type="xs:int"/>
         <xs:attribute name="coveredconditionals" use="required"
-                      type="xs:integer"/>
-        <xs:attribute name="statements" use="required" type="xs:integer"/>
+                      type="xs:int"/>
+        <xs:attribute name="statements" use="required" type="xs:int"/>
         <xs:attribute name="coveredstatements" use="required"
-                      type="xs:integer"/>
-        <xs:attribute name="coveredmethods" use="required" type="xs:integer"/>
-        <xs:attribute name="methods" use="required" type="xs:integer"/>
+                      type="xs:int"/>
+        <xs:attribute name="coveredmethods" use="required" type="xs:int"/>
+        <xs:attribute name="methods" use="required" type="xs:int"/>
 
         <xs:attribute name="testduration" type="xs:decimal"/>
-        <xs:attribute name="testfailures" type="xs:integer"/>
-        <xs:attribute name="testpasses" type="xs:integer"/>
-        <xs:attribute name="testruns" type="xs:integer"/>
+        <xs:attribute name="testfailures" type="xs:int"/>
+        <xs:attribute name="testpasses" type="xs:int"/>
+        <xs:attribute name="testruns" type="xs:int"/>
     </xs:complexType>
     <xs:complexType name="fileMetrics">
         <xs:annotation>
@@ -176,9 +176,9 @@
         </xs:annotation>
         <xs:complexContent>
             <xs:extension base="classMetrics">
-                <xs:attribute name="classes" type="xs:integer"/>
-                <xs:attribute name="loc" type="xs:integer"/>
-                <xs:attribute name="ncloc" type="xs:integer"/>
+                <xs:attribute name="classes" type="xs:int"/>
+                <xs:attribute name="loc" type="xs:int"/>
+                <xs:attribute name="ncloc" type="xs:int"/>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
@@ -191,7 +191,7 @@
         </xs:annotation>
         <xs:complexContent>
             <xs:extension base="fileMetrics">
-                <xs:attribute name="files" type="xs:integer"/>
+                <xs:attribute name="files" type="xs:int"/>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
@@ -204,7 +204,7 @@
         </xs:annotation>
         <xs:complexContent>
             <xs:extension base="packageMetrics">
-                <xs:attribute name="packages" type="xs:integer"/>
+                <xs:attribute name="packages" type="xs:int"/>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
