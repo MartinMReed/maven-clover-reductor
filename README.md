@@ -54,13 +54,3 @@ Continuous Integration: [Bamboo Status](http://bamboo.hardisonbrewing.org/browse
 
 # License
 GNU Lesser General Public License, Version 3.0.
-
-
-
-mvn
-org.hardisonbrewing:maven-clover-reductor:1.0.1-SNAPSHOT:reduct
--Dclover=target/site/clover/clover.xml
--DworkingCopy=.
--DcutoffDate=2013-01-01
--U
--Dthreads=600
