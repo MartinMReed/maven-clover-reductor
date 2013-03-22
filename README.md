@@ -10,7 +10,8 @@ mvn org.hardisonbrewing:maven-clover-reductor:1.0.1-SNAPSHOT:reduct \
 -DcutoffDate=2013-01-01
 ```
 
-You can change the number to threads used to run `svn:blame` by adding `-Dthreads=<thread count>`.
+You can change the number to threads used to run `svn:blame` by adding `-Dthreads=<thread count>`.  
+To set the SVN username add `-DsvnUsername=<username>`.
 
 # Build or Download
 To build this you need to use [Maven](http://maven.apache.org/download.html) with the [hbc-maven-core](https://github.com/hardisonbrewing/hbc-maven-core) project. Alternatively you can pull the latest version of hbc-maven-core from [http://repo.hardisonbrewing.org](http://repo.hardisonbrewing.org) (see repository settings below).
