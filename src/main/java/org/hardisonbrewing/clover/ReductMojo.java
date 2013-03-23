@@ -60,6 +60,7 @@ public final class ReductMojo extends AbstractMojo {
     private static final String WORKING_COPY = "workingCopy";
     private static final String CUTOFF_DATE = "cutoffDate";
     private static final String THREAD_COUNT = "threads";
+    private static final String SVN_USERNAME = "svnUsername";
 
     private File cloverReportFile;
 
@@ -108,7 +109,7 @@ public final class ReductMojo extends AbstractMojo {
 
     private void _execute() throws Exception {
 
-        svnUsername = getProperty( "svnUsername" );
+        svnUsername = getProperty( SVN_USERNAME );
         initCloverFilePath();
         initWorkingCopyPath();
         initCutoffDate();
