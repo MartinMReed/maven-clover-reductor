@@ -317,7 +317,6 @@ public final class ReductMojo extends AbstractMojo {
     private void addMetrics( generated.File file, Line line ) {
 
         FileMetrics fileMetrics = file.getMetrics();
-        fileMetrics.setLoc( _int( fileMetrics.getLoc() ) + 1 );
 
         int elements = 0;
         int coveredElements = 0;
@@ -326,6 +325,7 @@ public final class ReductMojo extends AbstractMojo {
             case STMT: {
                 elements = 1;
                 coveredElements = Math.min( 1, line.getCount() );
+                fileMetrics.setLoc( _int( fileMetrics.getLoc() ) + 1 );
                 fileMetrics.setStatements( fileMetrics.getStatements() + elements );
                 fileMetrics.setCoveredstatements( fileMetrics.getCoveredstatements() + coveredElements );
                 break;
