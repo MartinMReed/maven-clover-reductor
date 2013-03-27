@@ -137,8 +137,9 @@ public final class ReductMojo extends AbstractMojo {
 
         int fileCount = 0;
 
-        for (generated.Package _package : packages) {
+        for (int i = packages.size() - 1; i >= 0; i--) {
 
+            generated.Package _package = packages.get( i );
             List<generated.File> files = _package.getFile();
 
             if ( files.isEmpty() ) {
