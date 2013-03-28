@@ -33,11 +33,9 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
-import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.FileUtils;
 import org.codehaus.plexus.util.cli.CommandLineException;
 import org.codehaus.plexus.util.cli.CommandLineUtils;
@@ -54,44 +52,42 @@ import com.google.common.collect.SortedArraySet;
  */
 public final class ReductMojo extends AbstractMojo {
 
-    private static final int DEFAULT_THREAD_COUNT = 15;
-
     private static final String CLOVER = "clover";
     private static final String WORKING_COPY = "workingCopy";
     private static final String CUTOFF_DATE = "cutoffDate";
-    private static final String THREAD_COUNT = "threads";
-    private static final String SVN_USERNAME = "svnUsername";
 
     private File cloverReportFile;
 
+    /**
+     * @parameter expression="${svnUsername}"
+     */
     private String svnUsername;
+
+    /**
+     * @parameter property="clover" expression="${clover}"
+     */
+    private String cloverReportPath;
+
+    /**
+     * @parameter property="workingCopy" default-value="." expression="${workingCopy}"
+     */
     private String workingCopyPath;
+
+    /**
+     * @parameter expression="${cutoffDate}"
+     */
     private String cutoffDate;
-    private int threadCount = DEFAULT_THREAD_COUNT;
+
+    /**
+     * @parameter property="threads" default-value="15" expression="${threads}"
+     */
+    private int threadCount;
 
     private File targetDirectory;
-
     private long cutoffRevision;
-
-    /**
-     * @parameter expression="${project}"
-     * @required
-     */
-    private MavenProject mavenProject;
-
-    /**
-     * @parameter expression="${session}"
-     * @readonly
-     * @required
-     */
-    private MavenSession mavenSession;
 
     @Override
     public final void execute() throws MojoExecutionException, MojoFailureException {
-
-        if ( !mavenProject.isExecutionRoot() ) {
-            return;
-        }
 
         long start = System.currentTimeMillis();
 
@@ -109,11 +105,9 @@ public final class ReductMojo extends AbstractMojo {
 
     private void _execute() throws Exception {
 
-        svnUsername = getProperty( SVN_USERNAME );
         initCloverFilePath();
         initWorkingCopyPath();
         initCutoffDate();
-        initThreadCount();
 
         getLog().info( "Using coverage report from: " + cloverReportFile.getPath() );
 
@@ -195,29 +189,8 @@ public final class ReductMojo extends AbstractMojo {
         return new File( file.getParent(), name );
     }
 
-    private String getProperty( String key ) {
-
-        String value = mavenSession.getExecutionProperties().getProperty( key );
-        if ( value == null ) {
-            value = mavenProject.getProperties().getProperty( key );
-        }
-        if ( value == null ) {
-            return null;
-        }
-        boolean startsWith = value.startsWith( "\"" );
-        boolean endsWith = value.endsWith( "\"" );
-        if ( startsWith || endsWith ) {
-            int length = value.length();
-            int start = startsWith ? 1 : 0;
-            int end = endsWith ? length - 1 : length;
-            value = value.substring( start, end );
-        }
-        return value;
-    }
-
     private void initCloverFilePath() throws Exception {
 
-        String cloverReportPath = getProperty( CLOVER );
         if ( cloverReportPath == null || cloverReportPath.length() == 0 ) {
             getLog().error( "Required property `" + CLOVER + "` missing. Use -D" + CLOVER + "=<path to xml>" );
             throw new IllegalArgumentException();
@@ -231,7 +204,6 @@ public final class ReductMojo extends AbstractMojo {
 
     private void initWorkingCopyPath() throws Exception {
 
-        workingCopyPath = getProperty( WORKING_COPY );
         if ( workingCopyPath == null || workingCopyPath.length() == 0 ) {
             getLog().error( "Required property `" + WORKING_COPY + "` missing. Use -D" + WORKING_COPY + "=<path to working copy>" );
             throw new IllegalArgumentException();
@@ -249,24 +221,9 @@ public final class ReductMojo extends AbstractMojo {
 
     private void initCutoffDate() throws Exception {
 
-        cutoffDate = getProperty( CUTOFF_DATE );
         if ( cutoffDate == null || cutoffDate.length() == 0 ) {
             getLog().error( "Required property `" + CUTOFF_DATE + "` missing. Use -D" + CUTOFF_DATE + "=<timestamp>" );
             throw new IllegalArgumentException();
-        }
-    }
-
-    private void initThreadCount() throws Exception {
-
-        String threadCountStr = getProperty( THREAD_COUNT );
-        if ( threadCountStr != null && threadCountStr.length() > 0 ) {
-            try {
-                threadCount = Integer.parseInt( threadCountStr );
-            }
-            catch (NumberFormatException e) {
-                getLog().error( "Illegal thread count specified: -D" + THREAD_COUNT + "=" + threadCountStr + ". Must be an integer." );
-                throw new IllegalArgumentException();
-            }
         }
     }
 
@@ -466,6 +423,21 @@ public final class ReductMojo extends AbstractMojo {
         }
 
         return commandLine;
+    }
+
+    public void setThreads( int threadCount ) {
+
+        this.threadCount = threadCount;
+    }
+
+    public void setClover( String cloverReportPath ) {
+
+        this.cloverReportPath = cloverReportPath;
+    }
+
+    public void setWorkingCopy( String workingCopyPath ) {
+
+        this.workingCopyPath = workingCopyPath;
     }
 
     private final class BlameThread implements Runnable {
