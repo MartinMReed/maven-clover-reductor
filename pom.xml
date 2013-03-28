@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.hardisonbrewing</groupId>
 	<artifactId>maven-clover-reductor</artifactId>
-	<version>1.0.3-SNAPSHOT</version>
+	<version>1.0.3</version>
 	<packaging>maven-plugin</packaging>
 	<name>${project.artifactId}</name>
 	<scm>
