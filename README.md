@@ -14,10 +14,8 @@ You can change the number to threads used to run `svn:blame` by adding `-Dthread
 To set the SVN username add `-DsvnUsername=<username>`.
 
 ## Build or Download
-Dependency Projects:
-* [hbc-maven-core](https://github.com/hardisonbrewing/hbc-maven-core)
-
-Nexus: [http://repo.hardisonbrewing.org](http://repo.hardisonbrewing.org)  
+Dependency Projects: [hbc-maven-core](https://github.com/hardisonbrewing/hbc-maven-core)  
+Available in Nexus: [http://repo.hardisonbrewing.org](http://repo.hardisonbrewing.org)  
 Continuous Integration: [Bamboo Status](http://bamboo.hardisonbrewing.org/browse/MVN-CLVR)
 
 # License
